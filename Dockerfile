@@ -12,13 +12,14 @@ ARG PYINSTALLER_VERSION=6.11.1
 RUN dpkg --add-architecture i386 \
  && apt-get update -qy \
  && apt-get install -y --no-install-recommends \
-      ca-certificates wget gnupg2 xvfb cabextract winbind \
+      ca-certificates wget gnupg2 apt-transport-https \
+      xvfb cabextract winbind \
  && mkdir -pm755 /etc/apt/keyrings \
  && wget -qO /etc/apt/keyrings/winehq.key https://dl.winehq.org/wine-builds/winehq.key \
- && wget -qNP /etc/apt/sources.list.d/ \
-      https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources \
+ && echo "deb [arch=amd64,i386 signed-by=/etc/apt/keyrings/winehq.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" \
+      > /etc/apt/sources.list.d/winehq.list \
  && apt-get update -qy \
- && apt-get install -y --no-install-recommends winehq-stable \
+ && apt-get install -y winehq-stable \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
