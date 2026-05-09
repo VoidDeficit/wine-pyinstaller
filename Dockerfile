@@ -24,25 +24,21 @@ RUN dpkg --add-architecture i386 \
  && rm -rf /var/lib/apt/lists/*
 
 # ── Initialise Wine prefix ────────────────────────────────────────────────────
-# timeout kills xvfb-run+wineboot if they hang on RpcSs (normal in headless containers)
-RUN timeout 20 xvfb-run --server-args="-screen 0 1024x768x24" wineboot --init || true; \
-    wineserver -k 2>/dev/null || true; sleep 2
+RUN xvfb-run --server-args="-screen 0 1024x768x24" wineboot --init; \
+    wineserver -k 2>/dev/null; sleep 2
 
 # ── Install Python 3.11 inside Wine ──────────────────────────────────────────
 RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" \
       -O /tmp/py.exe \
- && timeout 300 xvfb-run --server-args="-screen 0 1024x768x24" \
-      wine /tmp/py.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 || true; \
-    wineserver -k 2>/dev/null || true; sleep 2; \
-    test -f "/wine/drive_c/Program Files/Python311/python.exe"; \
-    rm -f /tmp/py.exe
+ && xvfb-run --server-args="-screen 0 1024x768x24" \
+      wine /tmp/py.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0; \
+    wineserver -k 2>/dev/null; sleep 2; rm -f /tmp/py.exe
 
 # ── Upgrade pip + install PyInstaller ────────────────────────────────────────
-RUN timeout 300 xvfb-run --server-args="-screen 0 1024x768x24" \
+RUN xvfb-run --server-args="-screen 0 1024x768x24" \
       wine "C:\\Program Files\\Python311\\python.exe" -m pip install \
-        --upgrade pip "pyinstaller==${PYINSTALLER_VERSION}" || true; \
-    wineserver -k 2>/dev/null || true; sleep 2; \
-    test -f "/wine/drive_c/Program Files/Python311/Scripts/pyinstaller.exe"
+        --upgrade pip "pyinstaller==${PYINSTALLER_VERSION}"; \
+    wineserver -k 2>/dev/null; sleep 2
 
 # ── Wrapper scripts (rely on DISPLAY set by entrypoint) ──────────────────────
 RUN set -e; \
