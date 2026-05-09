@@ -24,22 +24,21 @@ RUN dpkg --add-architecture i386 \
  && rm -rf /var/lib/apt/lists/*
 
 # ── Initialise Wine prefix ────────────────────────────────────────────────────
-RUN xvfb-run --server-args="-screen 0 1024x768x24" wineboot --init \
- && while pgrep wineserver > /dev/null; do sleep 1; done
+RUN xvfb-run --server-args="-screen 0 1024x768x24" wineboot --init; \
+    wineserver -k 2>/dev/null; sleep 2
 
 # ── Install Python 3.11 inside Wine ──────────────────────────────────────────
 RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-amd64.exe" \
       -O /tmp/py.exe \
  && xvfb-run --server-args="-screen 0 1024x768x24" \
-      wine /tmp/py.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 \
- && while pgrep wineserver > /dev/null; do sleep 1; done \
- && rm /tmp/py.exe
+      wine /tmp/py.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0; \
+    wineserver -k 2>/dev/null; sleep 2; rm -f /tmp/py.exe
 
 # ── Upgrade pip + install PyInstaller ────────────────────────────────────────
 RUN xvfb-run --server-args="-screen 0 1024x768x24" \
       wine "C:\\Program Files\\Python311\\python.exe" -m pip install \
-        --upgrade pip "pyinstaller==${PYINSTALLER_VERSION}" \
- && while pgrep wineserver > /dev/null; do sleep 1; done
+        --upgrade pip "pyinstaller==${PYINSTALLER_VERSION}"; \
+    wineserver -k 2>/dev/null; sleep 2
 
 # ── Wrapper scripts (rely on DISPLAY set by entrypoint) ──────────────────────
 RUN set -e; \
