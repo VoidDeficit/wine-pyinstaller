@@ -13,7 +13,7 @@ RUN dpkg --add-architecture i386 \
  && apt-get update -qy \
  && apt-get install -y --no-install-recommends \
       ca-certificates wget gnupg2 apt-transport-https \
-      xvfb cabextract winbind unzip \
+      xvfb cabextract winbind unzip python3-pip \
  && mkdir -pm755 /etc/apt/keyrings \
  && wget -qO /etc/apt/keyrings/winehq.key https://dl.winehq.org/wine-builds/winehq.key \
  && echo "deb [arch=amd64,i386 signed-by=/etc/apt/keyrings/winehq.key] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" \
@@ -32,27 +32,35 @@ RUN wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON
       -O /tmp/py.zip \
  && unzip -q /tmp/py.zip -d "/wine/drive_c/Python311" \
  && sed -i 's/#import site/import site/' "/wine/drive_c/Python311/python311._pth" \
+ && mkdir -p "/wine/drive_c/Python311/Lib/site-packages" \
  && rm /tmp/py.zip
 
-# ── Bootstrap pip ─────────────────────────────────────────────────────────────
-RUN wget -q "https://bootstrap.pypa.io/get-pip.py" -O /tmp/get-pip.py \
- && xvfb-run --server-args="-screen 0 1024x768x24" \
-      wine "C:\\Python311\\python.exe" /tmp/get-pip.py; \
-    wineserver -k 2>/dev/null; sleep 2; rm /tmp/get-pip.py
-
-# ── Install PyInstaller ───────────────────────────────────────────────────────
-RUN xvfb-run --server-args="-screen 0 1024x768x24" \
-      wine "C:\\Python311\\python.exe" -m pip install \
-        "pyinstaller==${PYINSTALLER_VERSION}"; \
-    wineserver -k 2>/dev/null; sleep 2
+# ── Install pip + PyInstaller via Linux pip (no Wine execution during build) ──
+# pip/setuptools/wheel are pure Python — install directly into Wine's site-packages
+RUN pip3 install --break-system-packages \
+      --target "/wine/drive_c/Python311/Lib/site-packages" \
+      pip setuptools wheel
+# Download Windows wheels for PyInstaller and its deps, then extract
+RUN pip3 download \
+      --dest /tmp/wheels \
+      --platform win_amd64 \
+      --python-version 311 \
+      --implementation cp \
+      --only-binary :all: \
+      "pyinstaller==${PYINSTALLER_VERSION}" \
+ && for whl in /tmp/wheels/*.whl; do \
+      unzip -q -o "$whl" -d "/wine/drive_c/Python311/Lib/site-packages"; \
+    done \
+ && rm -rf /tmp/wheels
 
 # ── Wrapper scripts (rely on DISPLAY set by entrypoint) ──────────────────────
+# Use -m pip / -m PyInstaller so no .exe launcher is needed
 RUN set -e; \
     printf '#!/bin/sh\nexec wine "C:\\\\Python311\\\\python.exe" "$@"\n' \
       > /usr/local/bin/python; \
-    printf '#!/bin/sh\nexec wine "C:\\\\Python311\\\\Scripts\\\\pip.exe" "$@"\n' \
+    printf '#!/bin/sh\nexec wine "C:\\\\Python311\\\\python.exe" -m pip "$@"\n' \
       > /usr/local/bin/pip; \
-    printf '#!/bin/sh\nexec wine "C:\\\\Python311\\\\Scripts\\\\pyinstaller.exe" "$@"\n' \
+    printf '#!/bin/sh\nexec wine "C:\\\\Python311\\\\python.exe" -m PyInstaller "$@"\n' \
       > /usr/local/bin/pyinstaller; \
     chmod +x /usr/local/bin/python \
               /usr/local/bin/pip \
